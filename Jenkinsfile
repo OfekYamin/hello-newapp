@@ -25,6 +25,7 @@ podTemplate(containers: [
         ttyEnabled: true
     )
 ]) {
+
     node(POD_LABEL) {
 
         stage('checkout') {
@@ -101,37 +102,40 @@ podTemplate(containers: [
                 }
             )
         }
+
+        stage('Trivy Image Test') {
+            container('trivy') {
+
+                echo "Running Trivy image scan..."
+
+                sh """
+                    trivy image \
+                        --scanners vuln,secret,misconfig \
+                        --severity MEDIUM,HIGH,CRITICAL \
+                        ${appimage}:${apptag}
+                """
+            }
+        }
+
         stage('Deploy') {
-    container('docker') {
+            container('docker') {
 
-        echo "Deploying ${appimage}:${apptag}..."
+                echo "Deploying ${appimage}:${apptag}..."
 
-        sh """
-            docker pull ${appimage}:${apptag}
+                sh """
+                    docker pull ${appimage}:${apptag}
 
-            docker stop ${appname} || true
-            docker rm ${appname} || true
+                    docker stop ${appname} || true
+                    docker rm ${appname} || true
 
-            docker run -d \
-                --name ${appname} \
-                -p 5000:5000 \
-                ${appimage}:${apptag}
-        """
+                    docker run -d \
+                        --name ${appname} \
+                        -p 5000:5000 \
+                        ${appimage}:${apptag}
+                """
 
-        echo "Deployment completed!"
-    }
-}
-    stage('Trivy Image Test') {
-        container('trivy') {
-
-            echo "Running Trivy image scan..."
-
-            sh """
-                trivy image \
-                    --scanners vuln,secret,misconfig \
-                    --severity MEDIUM,HIGH,CRITICAL \
-                    ${appimage}:${apptag}
-            """
+                echo "Deployment completed!"
+            }
         }
     }
 }
