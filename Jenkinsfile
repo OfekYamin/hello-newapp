@@ -102,5 +102,25 @@ podTemplate(containers: [
                 }
             )
         }
+        stage('Deploy') {
+    container('docker') {
+
+        echo "Deploying ${appimage}:${apptag}..."
+
+        sh """
+            docker pull ${appimage}:${apptag}
+
+            docker stop ${appname} || true
+            docker rm ${appname} || true
+
+            docker run -d \
+                --name ${appname} \
+                -p 5005:5005 \
+                ${appimage}:${apptag}
+        """
+
+        echo "Deployment completed!"
+    }
+}
     }
 }
