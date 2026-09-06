@@ -3,19 +3,26 @@ def repo = "ofekyamin"
 def appimage = "${repo}/${appname}"
 def apptag = "${env.BUILD_NUMBER}"
 
-
 podTemplate(containers: [
     containerTemplate(
         name: 'jnlp',
         image: 'jenkins/inbound-agent',
         ttyEnabled: true
     ),
+
     containerTemplate(
         name: 'docker',
         image: 'docker:dind',
         command: 'cat',
         ttyEnabled: true,
         privileged: true
+    ),
+
+    containerTemplate(
+        name: 'trivy',
+        image: 'aquasec/trivy:latest',
+        command: 'cat',
+        ttyEnabled: true
     )
 ]) {
     node(POD_LABEL) {
@@ -27,50 +34,73 @@ podTemplate(containers: [
             }
         }
 
-        stage('build') {
-            container('docker') {
+        stage('Build and Scan') {
 
-                // Start Docker daemon
-                sh '''
-                    dockerd > /tmp/dockerd.log 2>&1 &
+            parallel(
 
-                    echo "Waiting for Docker daemon..."
+                'Build': {
+                    container('docker') {
 
-                    until docker info > /dev/null 2>&1; do
-                        sleep 1
-                    done
+                        sleep 5
 
-                    echo "Docker daemon is ready!"
-                '''
+                        // Start Docker daemon
+                        sh '''
+                            dockerd > /tmp/dockerd.log 2>&1 &
 
-                // Build Docker image
-                echo "Building docker image..."
+                            echo "Waiting for Docker daemon..."
 
-                sh "docker build -t ${appimage}:${apptag} ."
+                            until docker info > /dev/null 2>&1; do
+                                sleep 1
+                            done
 
-                // Tag image as latest
-                sh "docker tag ${appimage}:${apptag} ${appimage}:latest"
+                            echo "Docker daemon is ready!"
+                        '''
 
-                // Login to Docker Hub
-                withCredentials([usernamePassword(
-                    credentialsId: '835ac9fd-01b0-4605-acb8-74d56ca47c4e',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
+                        // Build Docker image
+                        echo "Building docker image..."
 
-                    sh '''
-                        echo "$DOCKER_PASS" | docker login \
-                            -u "$DOCKER_USER" \
-                            --password-stdin
-                    '''
+                        sh "docker build -t ${appimage}:${apptag} ."
 
-                    // Push versioned image
-                    sh "docker push ${appimage}:${apptag}"
+                        // Tag image as latest
+                        sh "docker tag ${appimage}:${apptag} ${appimage}:latest"
 
-                    // Push latest image
-                    sh "docker push ${appimage}:latest"
+                        // Login to Docker Hub
+                        withCredentials([usernamePassword(
+                            credentialsId: '835ac9fd-01b0-4605-acb8-74d56ca47c4e',
+                            usernameVariable: 'DOCKER_USER',
+                            passwordVariable: 'DOCKER_PASS'
+                        )]) {
+
+                            sh '''
+                                echo "$DOCKER_PASS" | docker login \
+                                    -u "$DOCKER_USER" \
+                                    --password-stdin
+                            '''
+
+                            // Push versioned image
+                            sh "docker push ${appimage}:${apptag}"
+
+                            // Push latest image
+                            sh "docker push ${appimage}:latest"
+                        }
+                    }
+                },
+
+                'Trivy FS Test': {
+                    container('trivy') {
+
+                        echo "Running Trivy filesystem scan..."
+
+                        sh '''
+                            trivy fs \
+                                --scanners vuln,secret,misconfig \
+                                --severity MEDIUM,HIGH,CRITICAL \
+                                --exit-code 1 \
+                                .
+                        '''
+                    }
                 }
-            }
+            )
         }
     }
 }
