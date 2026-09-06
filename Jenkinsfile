@@ -1,3 +1,4 @@
+
 def appname = "hello-newapp"
 def repo = "ofekyamin"
 def appimage = "${repo}/${appname}"
@@ -78,6 +79,7 @@ podTemplate(containers: [
                                     --password-stdin
                             '''
 
+        stage('Push Docker Image') {                    
                             // Push versioned image
                             sh "docker push ${appimage}:${apptag}"
 
