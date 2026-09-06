@@ -3,6 +3,7 @@ def repo = "ofekyamin"
 def appimage = "${repo}/${appname}"
 def apptag = "${env.BUILD_NUMBER}"
 
+
 podTemplate(containers: [
     containerTemplate(
         name: 'jnlp',
@@ -52,7 +53,7 @@ podTemplate(containers: [
 
                 // Login to Docker Hub
                 withCredentials([usernamePassword(
-                    credentialsId: 835ac9fd-01b0-4605-acb8-74d56ca47c4e
+                    credentialsId: '835ac9fd-01b0-4605-acb8-74d56ca47c4e',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
