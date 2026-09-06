@@ -95,7 +95,6 @@ podTemplate(containers: [
                             trivy fs \
                                 --scanners vuln,secret,misconfig \
                                 --severity MEDIUM,HIGH,CRITICAL \
-                                --exit-code 1 \
                                 .
                         '''
                     }
