@@ -29,28 +29,45 @@ podTemplate(containers: [
         stage('build') {
             container('docker') {
 
-                echo "Building ${appimage}:${apptag}..."
+                // Start Docker daemon
+                sh '''
+                    dockerd > /tmp/dockerd.log 2>&1 &
 
-                sh """
-                    docker build -t ${appimage}:${apptag} .
-                    docker tag ${appimage}:${apptag} ${appimage}:latest
-                """
+                    echo "Waiting for Docker daemon..."
 
-                echo "Logging into Docker Hub..."
+                    until docker info > /dev/null 2>&1; do
+                        sleep 1
+                    done
 
+                    echo "Docker daemon is ready!"
+                '''
+
+                // Build Docker image
+                echo "Building docker image..."
+
+                sh "docker build -t ${appimage}:${apptag} ."
+
+                // Tag image as latest
+                sh "docker tag ${appimage}:${apptag} ${appimage}:latest"
+
+                // Login to Docker Hub
                 withCredentials([usernamePassword(
-                    credentialsId: '835ac9fd-01b0-4605-acb8-74d56ca47c4e',
+                    credentialsId: 835ac9fd-01b0-4605-acb8-74d56ca47c4e
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh """
-                        echo "\$DOCKER_PASS" | docker login \
-                            -u "\$DOCKER_USER" \
-                            --password-stdin
 
-                        docker push ${appimage}:${apptag}
-                        docker push ${appimage}:latest
-                    """
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login \
+                            -u "$DOCKER_USER" \
+                            --password-stdin
+                    '''
+
+                    // Push versioned image
+                    sh "docker push ${appimage}:${apptag}"
+
+                    // Push latest image
+                    sh "docker push ${appimage}:latest"
                 }
             }
         }
